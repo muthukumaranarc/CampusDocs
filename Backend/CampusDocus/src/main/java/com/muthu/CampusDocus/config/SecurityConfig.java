@@ -1,0 +1,126 @@
+package com.muthu.CampusDocus.config;
+
+import com.muthu.CampusDocus.security.CustomOAuth2AuthorizationRequestResolver;
+import com.muthu.CampusDocus.security.CustomOAuth2UserService;
+import com.muthu.CampusDocus.security.CustomOidcUserService;
+import com.muthu.CampusDocus.security.OAuth2AuthenticationSuccessHandler;
+import com.muthu.CampusDocus.security.RestAuthenticationEntryPoint;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.List;
+
+@Configuration
+@EnableWebSecurity
+public class SecurityConfig {
+
+    private final CustomOAuth2UserService customOAuth2UserService;
+    private final CustomOidcUserService customOidcUserService;
+    private final OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
+    private final RestAuthenticationEntryPoint restAuthenticationEntryPoint;
+    private final ClientRegistrationRepository clientRegistrationRepository;
+
+    @Value("${app.frontend.url:http://localhost:5173}")
+    private String frontendUrl;
+
+    public SecurityConfig(CustomOAuth2UserService customOAuth2UserService,
+                          CustomOidcUserService customOidcUserService,
+                          OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler,
+                          RestAuthenticationEntryPoint restAuthenticationEntryPoint,
+                          ClientRegistrationRepository clientRegistrationRepository) {
+        this.customOAuth2UserService = customOAuth2UserService;
+        this.customOidcUserService = customOidcUserService;
+        this.oAuth2AuthenticationSuccessHandler = oAuth2AuthenticationSuccessHandler;
+        this.restAuthenticationEntryPoint = restAuthenticationEntryPoint;
+        this.clientRegistrationRepository = clientRegistrationRepository;
+    }
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        http
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .csrf(csrf -> csrf.disable()) // Rely on SameSite=Lax HttpOnly session cookies
+                .headers(headers -> headers.frameOptions(frame -> frame.disable()))
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
+                        .maximumSessions(1)
+                )
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(restAuthenticationEntryPoint)
+                )
+                .authorizeHttpRequests(auth -> auth
+                        // Public routes
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers("/api/auth/me").permitAll()
+                        .requestMatchers("/oauth2/**", "/login/**", "/error").permitAll()
+                        // Protected APIs
+                        .requestMatchers("/api/drive/**", "/api/documents/**").authenticated()
+                        .requestMatchers("/api/auth/logout").permitAll()
+                        // Any other request requires authentication
+                        .anyRequest().authenticated()
+                )
+                .oauth2Login(oauth2 -> oauth2
+                        .authorizationEndpoint(authEndpoint -> authEndpoint
+                                .authorizationRequestResolver(
+                                        new CustomOAuth2AuthorizationRequestResolver(clientRegistrationRepository)
+                                )
+                        )
+                        .userInfoEndpoint(userInfo -> userInfo
+                                .userService(customOAuth2UserService)
+                                .oidcUserService(customOidcUserService)
+                        )
+                        .successHandler(oAuth2AuthenticationSuccessHandler)
+                        .failureHandler((request, response, exception) -> {
+                            String errorMsg = URLEncoder.encode(exception.getMessage(), StandardCharsets.UTF_8);
+                            response.sendRedirect(frontendUrl + "/login?error=" + errorMsg);
+                        })
+                )
+                .logout(logout -> logout
+                        .logoutUrl("/api/auth/logout")
+                        .invalidateHttpSession(true)
+                        .clearAuthentication(true)
+                        .deleteCookies("JSESSIONID")
+                        .logoutSuccessHandler((request, response, authentication) -> {
+                            response.setContentType("application/json;charset=UTF-8");
+                            response.setStatus(HttpServletResponse.SC_OK);
+                            response.getWriter().write("{\"success\":true,\"message\":\"Logged out successfully\"}");
+                        })
+                );
+
+        return http.build();
+    }
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration config = new CorsConfiguration();
+        config.setAllowedOriginPatterns(List.of("http://localhost:*", "http://127.0.0.1:*"));
+        config.setAllowedOrigins(List.of(
+                frontendUrl,
+                "http://localhost:5173",
+                "http://localhost:3000",
+                "http://localhost:8080"
+        ));
+        config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"));
+        config.setAllowedHeaders(List.of("*"));
+        config.setAllowCredentials(true);
+        config.setMaxAge(3600L);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", config);
+        return source;
+    }
+}
