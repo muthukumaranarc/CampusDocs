@@ -1,0 +1,11 @@
+{
+  "buildCommand": "cd Frontend/CampusDocs-- && npm install && npm run build",
+  "outputDirectory": "Frontend/CampusDocs--/dist",
+  "framework": "vite",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

@@ -68,7 +68,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/me").permitAll()
                         .requestMatchers("/oauth2/**", "/login/**", "/error").permitAll()
                         // Protected APIs
-                        .requestMatchers("/api/user/**", "/api/drive/**", "/api/documents/**", "/api/mentorship/**", "/api/admin/**", "/api/announcements/**").authenticated()
+                        .requestMatchers("/api/user/**", "/api/users/**", "/api/drive/**", "/api/documents/**",
+                                "/api/mentorship/**", "/api/admin/**", "/api/announcements/**",
+                                "/api/notifications/**", "/api/friends/**").authenticated()
                         .requestMatchers("/api/auth/logout").permitAll()
                         // Any other request requires authentication
                         .anyRequest().authenticated()
@@ -107,7 +109,12 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(List.of("http://localhost:*", "http://127.0.0.1:*"));
+        config.setAllowedOriginPatterns(List.of(
+                "http://localhost:*",
+                "http://127.0.0.1:*",
+                "https://*.vercel.app",
+                "https://*.onrender.com"
+        ));
         config.setAllowedOrigins(List.of(
                 frontendUrl,
                 "http://localhost:5173",
