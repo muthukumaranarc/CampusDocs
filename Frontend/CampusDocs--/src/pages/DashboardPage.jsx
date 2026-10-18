@@ -224,7 +224,11 @@ export default function DashboardPage() {
       setErrorMessage(null)
       const res = await driveService.connect()
       if (res.authorizationUrl) {
-        window.location.href = res.authorizationUrl
+        const backendUrl = import.meta.env.VITE_API_BASE_URL || ''
+        const authUrl = res.authorizationUrl.startsWith('http')
+          ? res.authorizationUrl
+          : `${backendUrl}${res.authorizationUrl}`
+        window.location.href = authUrl
       }
     } catch (err) {
       console.error('Error connecting Drive:', err)

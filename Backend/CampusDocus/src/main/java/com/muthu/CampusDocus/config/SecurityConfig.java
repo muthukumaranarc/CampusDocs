@@ -19,6 +19,9 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -27,6 +30,8 @@ import java.util.List;
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
+
+    private static final Logger logger = LoggerFactory.getLogger(SecurityConfig.class);
 
     private final CustomOAuth2UserService customOAuth2UserService;
     private final CustomOidcUserService customOidcUserService;
@@ -87,8 +92,12 @@ public class SecurityConfig {
                         )
                         .successHandler(oAuth2AuthenticationSuccessHandler)
                         .failureHandler((request, response, exception) -> {
-                            String errorMsg = URLEncoder.encode(exception.getMessage(), StandardCharsets.UTF_8);
-                            response.sendRedirect(frontendUrl + "/login?error=" + errorMsg);
+                            logger.error("OAuth2 authentication failure encountered: ", exception);
+                            String errorMsg = URLEncoder.encode(
+                                    exception.getMessage() != null ? exception.getMessage() : "OAuth2 authentication failed",
+                                    StandardCharsets.UTF_8
+                            );
+                            response.sendRedirect(cleanFrontendUrl(frontendUrl) + "/login?error=" + errorMsg);
                         })
                 )
                 .logout(logout -> logout
@@ -104,6 +113,13 @@ public class SecurityConfig {
                 );
 
         return http.build();
+    }
+
+    private String cleanFrontendUrl(String url) {
+        if (url == null || url.isBlank()) {
+            return "http://localhost:5173";
+        }
+        return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
     }
 
     @Bean

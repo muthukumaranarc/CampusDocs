@@ -18,6 +18,8 @@ import org.springframework.security.web.authentication.SimpleUrlAuthenticationSu
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
@@ -51,51 +53,76 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
             return;
         }
 
-        if (authentication instanceof OAuth2AuthenticationToken oauthToken) {
-            String clientRegistrationId = oauthToken.getAuthorizedClientRegistrationId();
-            logger.info("OAuth2 login succeeded for registration: {}", clientRegistrationId);
+        String targetUrl = cleanFrontendUrl(frontendUrl) + "/dashboard?login=success";
 
-            User user = resolveUser(authentication.getPrincipal());
-            logger.info("Resolved user in success handler: id={}, email={}", user.getId(), user.getEmail());
+        try {
+            if (authentication instanceof OAuth2AuthenticationToken oauthToken) {
+                String clientRegistrationId = oauthToken.getAuthorizedClientRegistrationId();
+                logger.info("OAuth2 login succeeded for registration: {}", clientRegistrationId);
 
-            OAuth2AuthorizedClient authorizedClient = authorizedClientService.loadAuthorizedClient(
-                    clientRegistrationId,
-                    oauthToken.getName()
-            );
+                User user = resolveUser(authentication.getPrincipal());
+                logger.info("Resolved user in success handler: id={}, email={}", user.getId(), user.getEmail());
 
-            if (authorizedClient != null && authorizedClient.getAccessToken() != null) {
-                String accessToken = authorizedClient.getAccessToken().getTokenValue();
-                String refreshToken = authorizedClient.getRefreshToken() != null
-                        ? authorizedClient.getRefreshToken().getTokenValue()
-                        : null;
+                OAuth2AuthorizedClient authorizedClient = authorizedClientService.loadAuthorizedClient(
+                        clientRegistrationId,
+                        oauthToken.getName()
+                );
 
-                Long expiresInSeconds = null;
-                if (authorizedClient.getAccessToken().getExpiresAt() != null) {
-                    expiresInSeconds = Duration.between(Instant.now(), authorizedClient.getAccessToken().getExpiresAt()).toSeconds();
-                }
+                if (authorizedClient != null && authorizedClient.getAccessToken() != null) {
+                    String accessToken = authorizedClient.getAccessToken().getTokenValue();
+                    String refreshToken = authorizedClient.getRefreshToken() != null
+                            ? authorizedClient.getRefreshToken().getTokenValue()
+                            : null;
 
-                String scopes = String.join(" ", authorizedClient.getClientRegistration().getScopes());
-
-                if ("google-drive".equals(clientRegistrationId)) {
-                    logger.info("Saving Google Drive tokens and ensuring folder for user ID: {}", user.getId());
-                    googleDriveService.saveUserCredential(user, accessToken, refreshToken, expiresInSeconds, scopes);
-                    try {
-                        googleDriveService.ensureDedicatedFolder(user);
-                    } catch (Exception e) {
-                        logger.error("Folder auto-creation warning after OAuth: {}", e.getMessage());
+                    Long expiresInSeconds = null;
+                    if (authorizedClient.getAccessToken().getExpiresAt() != null) {
+                        expiresInSeconds = Duration.between(Instant.now(), authorizedClient.getAccessToken().getExpiresAt()).toSeconds();
                     }
-                    getRedirectStrategy().sendRedirect(request, response, frontendUrl + "/dashboard?drive_connected=true");
-                    return;
+
+                    String scopes = String.join(" ", authorizedClient.getClientRegistration().getScopes());
+
+                    boolean hasDriveScope = "google-drive".equals(clientRegistrationId)
+                            || (scopes != null && scopes.toLowerCase().contains("drive"));
+
+                    if (hasDriveScope) {
+                        logger.info("Saving Google Drive credentials for user ID: {} (scopes: {})", user.getId(), scopes);
+                        try {
+                            googleDriveService.saveUserCredential(user, accessToken, refreshToken, expiresInSeconds, scopes);
+                            googleDriveService.ensureDedicatedFolder(user);
+                        } catch (Exception e) {
+                            logger.warn("Drive folder or credential setup warning after OAuth: {}", e.getMessage());
+                        }
+
+                        if ("google-drive".equals(clientRegistrationId)) {
+                            targetUrl = cleanFrontendUrl(frontendUrl) + "/dashboard?drive_connected=true";
+                        }
+                    }
                 }
             }
-        }
 
-        getRedirectStrategy().sendRedirect(request, response, frontendUrl + "/dashboard?login=success");
+            getRedirectStrategy().sendRedirect(request, response, targetUrl);
+
+        } catch (Exception ex) {
+            logger.error("Error in OAuth2 authentication success handler: ", ex);
+            String errorMsg = URLEncoder.encode(
+                    "Authentication completed but user session initialization failed: " + ex.getMessage(),
+                    StandardCharsets.UTF_8
+            );
+            getRedirectStrategy().sendRedirect(request, response, cleanFrontendUrl(frontendUrl) + "/login?error=" + errorMsg);
+        }
     }
 
     private User resolveUser(Object principal) {
         if (principal instanceof CampusDocsOAuth2User customUser) {
-            return userService.getUserById(customUser.getUserId());
+            if (customUser.getUserId() != null && !customUser.getUserId().isBlank()) {
+                try {
+                    return userService.getUserById(customUser.getUserId());
+                } catch (Exception e) {
+                    logger.warn("Could not find user by ID {}: {}. Falling back to subject/email resolution.",
+                            customUser.getUserId(), e.getMessage());
+                }
+            }
+            return userService.findOrCreateUser(customUser.getGoogleSubject(), customUser.getEmail(), customUser.getDisplayName(), null);
         }
 
         if (principal instanceof OidcUser oidcUser) {
@@ -116,5 +143,12 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
         }
 
         throw new IllegalStateException("Unknown principal type: " + (principal != null ? principal.getClass().getName() : "null"));
+    }
+
+    private String cleanFrontendUrl(String url) {
+        if (url == null || url.isBlank()) {
+            return "http://localhost:5173";
+        }
+        return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
     }
 }

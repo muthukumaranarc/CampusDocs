@@ -25,32 +25,39 @@ public class CustomOidcUserService extends OidcUserService {
 
     @Override
     public OidcUser loadUser(OidcUserRequest userRequest) throws OAuth2AuthenticationException {
-        OidcUser oidcUser = super.loadUser(userRequest);
-        Map<String, Object> attributes = oidcUser.getAttributes();
+        try {
+            OidcUser oidcUser = super.loadUser(userRequest);
+            Map<String, Object> attributes = oidcUser.getAttributes();
 
-        String registrationId = userRequest.getClientRegistration().getRegistrationId();
-        logger.info("Processing Google OIDC login for registrationId: {}", registrationId);
+            String registrationId = userRequest.getClientRegistration().getRegistrationId();
+            logger.info("Processing Google OIDC login for registrationId: {}", registrationId);
 
-        String googleSubject = oidcUser.getSubject();
-        String email = oidcUser.getEmail();
-        String name = oidcUser.getFullName();
-        String picture = oidcUser.getPicture();
+            String googleSubject = oidcUser.getSubject();
+            String email = oidcUser.getEmail();
+            String name = oidcUser.getFullName();
+            String picture = oidcUser.getPicture();
 
-        if (googleSubject == null || email == null) {
-            throw new OAuth2AuthenticationException("Google OIDC attributes (sub, email) missing.");
+            if (googleSubject == null || email == null) {
+                throw new OAuth2AuthenticationException("Google OIDC attributes (sub, email) missing.");
+            }
+
+            User user = userService.findOrCreateUser(googleSubject, email, name, picture);
+            logger.info("Successfully persisted/synced user in MongoDB: id={}, email={}", user.getId(), user.getEmail());
+
+            return new CampusDocsOAuth2User(
+                    user.getId(),
+                    googleSubject,
+                    email,
+                    name,
+                    attributes,
+                    oidcUser.getIdToken(),
+                    oidcUser.getUserInfo()
+            );
+        } catch (OAuth2AuthenticationException e) {
+            throw e;
+        } catch (Exception e) {
+            logger.error("Failed to authenticate or persist user profile during Google OIDC login: ", e);
+            throw new OAuth2AuthenticationException(new org.springframework.security.oauth2.core.OAuth2Error("server_error", e.getMessage(), null), e);
         }
-
-        User user = userService.findOrCreateUser(googleSubject, email, name, picture);
-        logger.info("Successfully persisted/synced user in MongoDB: id={}, email={}", user.getId(), user.getEmail());
-
-        return new CampusDocsOAuth2User(
-                user.getId(),
-                googleSubject,
-                email,
-                name,
-                attributes,
-                oidcUser.getIdToken(),
-                oidcUser.getUserInfo()
-        );
     }
 }
