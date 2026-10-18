@@ -18,7 +18,61 @@ public class CampusDocusApplication {
 
 	public static void main(String[] args) {
 		loadDotEnv();
+		sanitizeMongoUri();
 		SpringApplication.run(CampusDocusApplication.class, args);
+	}
+
+	private static void sanitizeMongoUri() {
+		String rawMongo = System.getProperty("MONGODB_URL");
+		if (rawMongo == null || rawMongo.isBlank()) {
+			rawMongo = System.getenv("MONGODB_URL");
+		}
+		if (rawMongo == null || rawMongo.isBlank()) {
+			rawMongo = System.getProperty("MONGODB_URI");
+		}
+		if (rawMongo == null || rawMongo.isBlank()) {
+			rawMongo = System.getenv("MONGODB_URI");
+		}
+
+		if (rawMongo != null && !rawMongo.isBlank()) {
+			String clean = rawMongo.trim();
+
+			// Strip quotes if present
+			if ((clean.startsWith("\"") && clean.endsWith("\"")) || (clean.startsWith("'") && clean.endsWith("'"))) {
+				if (clean.length() >= 2) {
+					clean = clean.substring(1, clean.length() - 1).trim();
+				}
+			}
+
+			// If inadvertently prefixed with markdown tags like "text" or backticks
+			int mongoIdx = clean.indexOf("mongodb://");
+			int mongoSrvIdx = clean.indexOf("mongodb+srv://");
+			int startIdx = -1;
+			if (mongoSrvIdx >= 0 && (mongoIdx < 0 || mongoSrvIdx < mongoIdx)) {
+				startIdx = mongoSrvIdx;
+			} else if (mongoIdx >= 0) {
+				startIdx = mongoIdx;
+			}
+
+			if (startIdx > 0) {
+				log.warn("Detected prefix before MongoDB scheme in connection string. Stripping leading characters.");
+				clean = clean.substring(startIdx);
+			}
+
+			// Clean whitespace, carriage returns and newlines
+			clean = clean.replaceAll("[\\r\\n\\t]+", "").trim();
+
+			if (clean.startsWith("mongodb://") || clean.startsWith("mongodb+srv://")) {
+				log.info("Sanitized MongoDB connection URI successfully (Scheme: {})",
+						clean.startsWith("mongodb+srv://") ? "mongodb+srv" : "mongodb");
+				System.setProperty("MONGODB_URL", clean);
+				System.setProperty("spring.data.mongodb.uri", clean);
+				System.setProperty("spring.mongodb.uri", clean);
+			} else {
+				log.error("CRITICAL: MONGODB_URL is invalid! It does not start with 'mongodb://' or 'mongodb+srv://'. Raw start: '{}'",
+						clean.length() > 20 ? clean.substring(0, 20) : clean);
+			}
+		}
 	}
 
 	private static void loadDotEnv() {
