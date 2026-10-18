@@ -38,6 +38,7 @@ public class SecurityConfig {
     private final OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
     private final RestAuthenticationEntryPoint restAuthenticationEntryPoint;
     private final ClientRegistrationRepository clientRegistrationRepository;
+    private final com.muthu.CampusDocus.security.HttpCookieOAuth2AuthorizationRequestRepository cookieAuthorizationRequestRepository;
 
     @Value("${app.frontend.url:http://localhost:5173}")
     private String frontendUrl;
@@ -46,12 +47,14 @@ public class SecurityConfig {
                           CustomOidcUserService customOidcUserService,
                           OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler,
                           RestAuthenticationEntryPoint restAuthenticationEntryPoint,
-                          ClientRegistrationRepository clientRegistrationRepository) {
+                          ClientRegistrationRepository clientRegistrationRepository,
+                          com.muthu.CampusDocus.security.HttpCookieOAuth2AuthorizationRequestRepository cookieAuthorizationRequestRepository) {
         this.customOAuth2UserService = customOAuth2UserService;
         this.customOidcUserService = customOidcUserService;
         this.oAuth2AuthenticationSuccessHandler = oAuth2AuthenticationSuccessHandler;
         this.restAuthenticationEntryPoint = restAuthenticationEntryPoint;
         this.clientRegistrationRepository = clientRegistrationRepository;
+        this.cookieAuthorizationRequestRepository = cookieAuthorizationRequestRepository;
     }
 
     @Bean
@@ -62,7 +65,6 @@ public class SecurityConfig {
                 .headers(headers -> headers.frameOptions(frame -> frame.disable()))
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
-                        .maximumSessions(1)
                 )
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint(restAuthenticationEntryPoint)
@@ -85,6 +87,7 @@ public class SecurityConfig {
                                 .authorizationRequestResolver(
                                         new CustomOAuth2AuthorizationRequestResolver(clientRegistrationRepository)
                                 )
+                                .authorizationRequestRepository(cookieAuthorizationRequestRepository)
                         )
                         .userInfoEndpoint(userInfo -> userInfo
                                 .userService(customOAuth2UserService)
@@ -104,7 +107,7 @@ public class SecurityConfig {
                         .logoutUrl("/api/auth/logout")
                         .invalidateHttpSession(true)
                         .clearAuthentication(true)
-                        .deleteCookies("JSESSIONID")
+                        .deleteCookies("JSESSIONID", "campusdocs_oauth2_req", "campusdocs_redirect_uri")
                         .logoutSuccessHandler((request, response, authentication) -> {
                             response.setContentType("application/json;charset=UTF-8");
                             response.setStatus(HttpServletResponse.SC_OK);

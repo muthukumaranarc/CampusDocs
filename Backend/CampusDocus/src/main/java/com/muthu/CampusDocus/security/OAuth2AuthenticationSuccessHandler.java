@@ -32,16 +32,19 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
     private final OAuth2AuthorizedClientService authorizedClientService;
     private final UserService userService;
     private final GoogleDriveService googleDriveService;
+    private final HttpCookieOAuth2AuthorizationRequestRepository cookieAuthorizationRequestRepository;
 
     @Value("${app.frontend.url:http://localhost:5173}")
     private String frontendUrl;
 
     public OAuth2AuthenticationSuccessHandler(OAuth2AuthorizedClientService authorizedClientService,
                                               UserService userService,
-                                              GoogleDriveService googleDriveService) {
+                                              GoogleDriveService googleDriveService,
+                                              HttpCookieOAuth2AuthorizationRequestRepository cookieAuthorizationRequestRepository) {
         this.authorizedClientService = authorizedClientService;
         this.userService = userService;
         this.googleDriveService = googleDriveService;
+        this.cookieAuthorizationRequestRepository = cookieAuthorizationRequestRepository;
     }
 
     @Override
@@ -100,10 +103,12 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
                 }
             }
 
+            cookieAuthorizationRequestRepository.deleteCookies(request, response);
             getRedirectStrategy().sendRedirect(request, response, targetUrl);
 
         } catch (Exception ex) {
             logger.error("Error in OAuth2 authentication success handler: ", ex);
+            cookieAuthorizationRequestRepository.deleteCookies(request, response);
             String errorMsg = URLEncoder.encode(
                     "Authentication completed but user session initialization failed: " + ex.getMessage(),
                     StandardCharsets.UTF_8
