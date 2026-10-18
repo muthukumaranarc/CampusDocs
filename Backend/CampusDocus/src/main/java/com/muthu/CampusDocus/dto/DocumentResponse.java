@@ -15,6 +15,15 @@ public class DocumentResponse {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
+    // Student & Mentor Analysis metadata
+    private String studentId;
+    private String studentName;
+    private String studentEmail;
+    private String analysisNotes;
+    private String analysisStatus;
+    private LocalDateTime analyzedAt;
+    private String analyzedByMentorName;
+
     public DocumentResponse() {
     }
 
@@ -33,6 +42,7 @@ public class DocumentResponse {
         this.driveWebViewLink = driveWebViewLink;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
+        this.analysisStatus = "PENDING_REVIEW";
     }
 
     public String getId() {
@@ -113,5 +123,61 @@ public class DocumentResponse {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public String getStudentId() {
+        return studentId;
+    }
+
+    public void setStudentId(String studentId) {
+        this.studentId = studentId;
+    }
+
+    public String getStudentName() {
+        return studentName;
+    }
+
+    public void setStudentName(String studentName) {
+        this.studentName = studentName;
+    }
+
+    public String getStudentEmail() {
+        return studentEmail;
+    }
+
+    public void setStudentEmail(String studentEmail) {
+        this.studentEmail = studentEmail;
+    }
+
+    public String getAnalysisNotes() {
+        return analysisNotes;
+    }
+
+    public void setAnalysisNotes(String analysisNotes) {
+        this.analysisNotes = analysisNotes;
+    }
+
+    public String getAnalysisStatus() {
+        return analysisStatus != null ? analysisStatus : "PENDING_REVIEW";
+    }
+
+    public void setAnalysisStatus(String analysisStatus) {
+        this.analysisStatus = analysisStatus;
+    }
+
+    public LocalDateTime getAnalyzedAt() {
+        return analyzedAt;
+    }
+
+    public void setAnalyzedAt(LocalDateTime analyzedAt) {
+        this.analyzedAt = analyzedAt;
+    }
+
+    public String getAnalyzedByMentorName() {
+        return analyzedByMentorName;
+    }
+
+    public void setAnalyzedByMentorName(String analyzedByMentorName) {
+        this.analyzedByMentorName = analyzedByMentorName;
     }
 }

@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
 import { documentService } from '../services/api'
+import './UploadModal.css'
 
 const CATEGORIES = [
   { value: 'ACADEMIC_RECORDS', label: 'Academic Records' },

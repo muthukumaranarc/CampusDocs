@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { documentService } from '../services/api'
+import './DocumentPreviewModal.css'
 
 export default function DocumentPreviewModal({ isOpen, onClose, document: doc }) {
   if (!isOpen || !doc) return null
@@ -16,10 +17,11 @@ export default function DocumentPreviewModal({ isOpen, onClose, document: doc })
 function DocumentPreviewContent({ doc, onClose }) {
   const isPdf = doc.mimeType === 'application/pdf'
   const isImage = doc.mimeType?.startsWith('image/')
-  const isPreviewable = isPdf || isImage
+  const isShowcase = Boolean(doc.thumbnail || doc.previewImg) && !doc.isReal
+  const isPreviewable = isPdf || isImage || isShowcase
 
-  const [blobUrl, setBlobUrl] = useState(null)
-  const [loading, setLoading] = useState(isPreviewable)
+  const [blobUrl, setBlobUrl] = useState(isShowcase ? (doc.previewImg || doc.thumbnail) : null)
+  const [loading, setLoading] = useState(isPreviewable && !isShowcase)
   const [error, setError] = useState(null)
   const [downloading, setDownloading] = useState(false)
 
@@ -27,7 +29,13 @@ function DocumentPreviewContent({ doc, onClose }) {
     let active = true
     let createdUrl = null
 
-    if (!isPreviewable) {
+    if (isShowcase) {
+      setBlobUrl(doc.previewImg || doc.thumbnail)
+      setLoading(false)
+      return
+    }
+
+    if (!isPreviewable || !doc.id) {
       return
     }
 
@@ -54,12 +62,25 @@ function DocumentPreviewContent({ doc, onClose }) {
         URL.revokeObjectURL(createdUrl)
       }
     }
-  }, [doc.id, isPreviewable])
+  }, [doc.id, isPreviewable, isShowcase, doc.previewImg, doc.thumbnail])
 
   const handleDownload = async () => {
     try {
       setDownloading(true)
-      await documentService.download(doc.id, doc.originalFileName || 'document')
+      if (doc.isReal && doc.id) {
+        await documentService.download(doc.id, doc.originalFileName || doc.title || 'document')
+      } else {
+        const demoContent = `CAMPUS DOCUMENTS INSTITUTIONAL RECORD\nDocument: ${doc.title}\nCategory: ${doc.category || 'Academic'}\nStatus: ${doc.status || 'Verified'}\nIssued: ${doc.uploadedDate || 'Oct 2025'}\nDigital Seal: VALID [SHA-256: 7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069]`
+        const blob = new Blob([demoContent], { type: 'text/plain;charset=utf-8' })
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = `${(doc.title || 'document').replace(/\\s+/g, '_')}_Verified.txt`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        URL.revokeObjectURL(url)
+      }
     } catch (err) {
       console.error('Download error:', err)
       alert(err.response?.data?.message || 'Failed to download document.')

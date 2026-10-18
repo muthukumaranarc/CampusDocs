@@ -17,5 +17,9 @@ export default function ProtectedRoute({ children }) {
     return <Navigate to="/login" replace />
   }
 
+  if (user.onboardingCompleted === false) {
+    return <Navigate to="/onboarding" replace />
+  }
+
   return children
 }

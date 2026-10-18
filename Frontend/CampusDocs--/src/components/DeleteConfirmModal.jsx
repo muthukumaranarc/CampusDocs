@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { documentService } from '../services/api'
+import './DeleteConfirmModal.css'
 
 export default function DeleteConfirmModal({ isOpen, onClose, document: doc, onSuccess }) {
   const [deleting, setDeleting] = useState(false)

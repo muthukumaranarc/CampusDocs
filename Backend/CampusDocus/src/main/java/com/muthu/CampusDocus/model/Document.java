@@ -30,6 +30,13 @@ public class Document {
 
     private String driveWebViewLink;
 
+    // Mentorship Analysis fields
+    private String analysisNotes;
+    private String analysisStatus = "PENDING_REVIEW"; // PENDING_REVIEW, UNDER_REVIEW, APPROVED, NEEDS_REVISION
+    private LocalDateTime analyzedAt;
+    private String analyzedByMentorId;
+    private String analyzedByMentorName;
+
     @CreatedDate
     private LocalDateTime createdAt;
 
@@ -49,6 +56,7 @@ public class Document {
         this.mimeType = mimeType;
         this.fileSize = fileSize;
         this.driveWebViewLink = driveWebViewLink;
+        this.analysisStatus = "PENDING_REVIEW";
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
     }
@@ -123,6 +131,46 @@ public class Document {
 
     public void setDriveWebViewLink(String driveWebViewLink) {
         this.driveWebViewLink = driveWebViewLink;
+    }
+
+    public String getAnalysisNotes() {
+        return analysisNotes;
+    }
+
+    public void setAnalysisNotes(String analysisNotes) {
+        this.analysisNotes = analysisNotes;
+    }
+
+    public String getAnalysisStatus() {
+        return analysisStatus != null ? analysisStatus : "PENDING_REVIEW";
+    }
+
+    public void setAnalysisStatus(String analysisStatus) {
+        this.analysisStatus = analysisStatus;
+    }
+
+    public LocalDateTime getAnalyzedAt() {
+        return analyzedAt;
+    }
+
+    public void setAnalyzedAt(LocalDateTime analyzedAt) {
+        this.analyzedAt = analyzedAt;
+    }
+
+    public String getAnalyzedByMentorId() {
+        return analyzedByMentorId;
+    }
+
+    public void setAnalyzedByMentorId(String analyzedByMentorId) {
+        this.analyzedByMentorId = analyzedByMentorId;
+    }
+
+    public String getAnalyzedByMentorName() {
+        return analyzedByMentorName;
+    }
+
+    public void setAnalyzedByMentorName(String analyzedByMentorName) {
+        this.analyzedByMentorName = analyzedByMentorName;
     }
 
     public LocalDateTime getCreatedAt() {

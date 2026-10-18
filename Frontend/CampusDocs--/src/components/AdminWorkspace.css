@@ -1,0 +1,197 @@
+  margin: 0 0 4px 0;
+  font-size: 15px;
+  color: var(--text-main);
+}
+
+.notes-display-box {
+  background: rgba(241, 245, 249, 0.8);
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+@media (prefers-color-scheme: dark) {
+  .notes-display-box {
+    background: rgba(15, 23, 42, 0.8);
+  }
+}
+
+/* Admin Workspace */
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.stat-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stat-card-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.stat-card-number {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.stat-card-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.role-select {
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  color: var(--text-main);
+  cursor: pointer;
+}
+
+.role-select.role-admin {
+  border-color: #7e22ce;
+  color: #7e22ce;
+}
+
+.role-select.role-mentor {
+  border-color: #1d4ed8;
+  color: #1d4ed8;
+}
+
+.role-select.role-student {
+  border-color: #047857;
+  color: #047857;
+}
+
+.select-compact {
+  padding: 6px 12px;
+  font-size: 13px;
+  width: auto;
+  display: inline-block;
+}
+
+.mentor-assignment-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.unassigned-mentor-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+/* Student's Mentor Profile View */
+.mentor-profile-card {
+  max-width: 650px;
+  margin: 0 auto;
+  padding: 24px;
+  border-radius: 16px;
+}
+
+.mentor-profile-header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 20px;
+}
+
+.mentor-profile-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mentor-role-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: #1d4ed8;
+  background: rgba(59, 130, 246, 0.1);
+  padding: 2px 8px;
+  border-radius: 4px;
+  align-self: flex-start;
+}
+
+.mentor-profile-name {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.mentor-profile-email {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.mentor-profile-body {
+  padding-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.mentor-info-box {
+  display: flex;
+  gap: 12px;
+  background: rgba(59, 130, 246, 0.05);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 10px;
+  padding: 14px;
+}
+
+.mentor-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.mentor-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Unassigned Mentor Card */
+.unassigned-mentor-card {
+  max-width: 580px;
+  margin: 0 auto;
+  padding: 24px;
+  border-radius: 16px;
+}
+
+.unassigned-mentor-header {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.unassigned-icon {
+  font-size: 36px;
+}
+
+.unassigned-mentor-header h3 {
+  margin: 0 0 4px 0;
+  font-size: 18px;
+  color: var(--text-main);
+}
+

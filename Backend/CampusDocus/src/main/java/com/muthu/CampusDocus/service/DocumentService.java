@@ -1,6 +1,7 @@
 package com.muthu.CampusDocus.service;
 
 import com.google.api.services.drive.model.File;
+import com.muthu.CampusDocus.dto.DocumentAnalysisRequest;
 import com.muthu.CampusDocus.dto.DocumentFileStream;
 import com.muthu.CampusDocus.dto.DocumentResponse;
 import com.muthu.CampusDocus.dto.DocumentUpdateRequest;
@@ -11,7 +12,9 @@ import com.muthu.CampusDocus.exception.ResourceNotFoundException;
 import com.muthu.CampusDocus.model.Document;
 import com.muthu.CampusDocus.model.DocumentCategory;
 import com.muthu.CampusDocus.model.User;
+import com.muthu.CampusDocus.model.UserRole;
 import com.muthu.CampusDocus.repository.DocumentRepository;
+import com.muthu.CampusDocus.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
@@ -29,6 +32,7 @@ import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -41,15 +45,21 @@ public class DocumentService {
     private final DocumentValidationService validationService;
     private final GoogleDriveService googleDriveService;
     private final MongoTemplate mongoTemplate;
+    private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
     public DocumentService(DocumentRepository documentRepository,
                            DocumentValidationService validationService,
                            GoogleDriveService googleDriveService,
-                           MongoTemplate mongoTemplate) {
+                           MongoTemplate mongoTemplate,
+                           UserRepository userRepository,
+                           NotificationService notificationService) {
         this.documentRepository = documentRepository;
         this.validationService = validationService;
         this.googleDriveService = googleDriveService;
         this.mongoTemplate = mongoTemplate;
+        this.userRepository = userRepository;
+        this.notificationService = notificationService;
     }
 
     public DocumentUploadResponse uploadDocument(User user, MultipartFile file, String title, String categoryStr) {
@@ -98,11 +108,27 @@ public class DocumentService {
             logger.info("Successfully persisted document metadata in MongoDB Atlas: docId={}, driveFileId={}, userId={}",
                     savedDoc.getId(), savedDoc.getDriveFileId(), user.getId());
 
-            return mapToUploadResponse(savedDoc, "Document uploaded and secured in your Google Drive folder successfully.");
+            try {
+                notificationService.createNotification(
+                        user.getId(),
+                        "Document Uploaded: " + savedDoc.getTitle(),
+                        "Your file \"" + savedDoc.getOriginalFileName() + "\" was successfully uploaded and mirrored to your Google Drive vault.",
+                        "verification",
+                        "DOCUMENT UPLOAD",
+                        "normal",
+                        "Google Drive Sync",
+                        "cloud",
+                        "View in Documents →",
+                        "documents"
+                );
+            } catch (Exception ex) {
+                logger.warn("Could not create upload notification: {}", ex.getMessage());
+            }
 
+            return mapToUploadResponse(savedDoc, "File uploaded successfully to your CampusDocs Google Drive folder!");
         } catch (Exception dbException) {
-            logger.error("MongoDB persistence failed after successful Google Drive upload. Initiating rollback compensation...", dbException);
-            // Delete the orphaned file from Google Drive to maintain consistency
+            logger.error("Failed to persist document metadata in MongoDB Atlas. Initiating Google Drive rollback for file ID '{}': {}",
+                    uploadedDriveFile.getId(), dbException.getMessage());
             try {
                 googleDriveService.deleteFile(user, uploadedDriveFile.getId());
             } catch (Exception deleteEx) {
@@ -122,13 +148,11 @@ public class DocumentService {
         int safePage = Math.max(0, page);
         int safeSize = Math.min(Math.max(1, size), 50);
 
-        // Build Sort specification
         String sortField = resolveSortField(sortBy);
         Sort.Direction direction = "asc".equalsIgnoreCase(sortDirection) ? Sort.Direction.ASC : Sort.Direction.DESC;
         Sort sort = Sort.by(direction, sortField);
         Pageable pageable = PageRequest.of(safePage, safeSize, sort);
 
-        // Build Criteria list
         List<Criteria> criteriaList = new ArrayList<>();
         criteriaList.add(Criteria.where("userId").is(user.getId()));
 
@@ -161,20 +185,23 @@ public class DocumentService {
         boolean isLast = safePage >= totalPages - 1;
 
         List<DocumentResponse> content = documents.stream()
-                .map(this::mapToDocumentResponse)
+                .map(doc -> mapToDocumentResponse(doc, user))
                 .collect(Collectors.toList());
 
         return new PageResponse<>(content, safePage, safeSize, totalElements, totalPages, isFirst, isLast);
     }
 
-    public DocumentFileStream getDocumentStream(User user, String documentId) {
-        Document doc = getDocumentAndVerifyOwnership(user, documentId);
+    public DocumentFileStream getDocumentStream(User requester, String documentId) {
+        Document doc = getDocumentAndVerifyAccess(requester, documentId);
+
+        // Resolve document owner to use their Google Drive credentials
+        User docOwner = userRepository.findById(doc.getUserId())
+                .orElse(requester);
 
         try {
-            InputStream inputStream = googleDriveService.downloadFile(user, doc.getDriveFileId());
+            InputStream inputStream = googleDriveService.downloadFile(docOwner, doc.getDriveFileId());
             return new DocumentFileStream(doc, inputStream);
         } catch (ResourceNotFoundException notFoundEx) {
-            // Graceful stale metadata handling: File was moved or deleted directly in Google Drive
             logger.warn("Document file '{}' (Drive ID: {}) missing from Google Drive. Removing stale metadata for docId: {}",
                     doc.getTitle(), doc.getDriveFileId(), doc.getId());
             try {
@@ -182,7 +209,7 @@ public class DocumentService {
             } catch (Exception e) {
                 logger.error("Failed to delete stale document metadata from database: {}", e.getMessage());
             }
-            throw new ResourceNotFoundException("The requested document was removed from your Google Drive. Stale metadata has been synchronized.");
+            throw new ResourceNotFoundException("The requested document was removed from Google Drive. Stale metadata has been synchronized.");
         }
     }
 
@@ -213,10 +240,10 @@ public class DocumentService {
             doc.setUpdatedAt(LocalDateTime.now());
             Document saved = documentRepository.save(doc);
             logger.info("Updated document metadata for docId: {}, userId: {}", saved.getId(), user.getId());
-            return mapToDocumentResponse(saved);
+            return mapToDocumentResponse(saved, user);
         }
 
-        return mapToDocumentResponse(doc);
+        return mapToDocumentResponse(doc, user);
     }
 
     public void deleteDocument(User user, String documentId) {
@@ -238,6 +265,145 @@ public class DocumentService {
                 .collect(Collectors.toList());
     }
 
+    // ==========================================
+    // MENTORSHIP ANALYSIS METHODS
+    // ==========================================
+
+    public List<DocumentResponse> getMenteeDocuments(User mentorOrAdmin, String studentId) {
+        User student = userRepository.findById(studentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Student not found with ID: " + studentId));
+
+        // If requester is a MENTOR, verify that student is assigned to this mentor
+        if (mentorOrAdmin.getRole() == UserRole.MENTOR) {
+            if (student.getMentorId() == null || !student.getMentorId().equals(mentorOrAdmin.getId())) {
+                throw new AccessDeniedException("You are not the assigned mentor for student: " + student.getDisplayName());
+            }
+        } else if (mentorOrAdmin.getRole() != UserRole.ADMIN) {
+            throw new AccessDeniedException("Only mentors and admins can view mentee documents.");
+        }
+
+        List<Document> docs = documentRepository.findByUserIdOrderByCreatedAtDesc(studentId);
+        return docs.stream()
+                .map(d -> mapToDocumentResponse(d, student))
+                .collect(Collectors.toList());
+    }
+
+    public DocumentResponse analyzeDocument(User mentorOrAdmin, String documentId, DocumentAnalysisRequest request) {
+        if (mentorOrAdmin.getRole() != UserRole.MENTOR && mentorOrAdmin.getRole() != UserRole.ADMIN) {
+            throw new AccessDeniedException("Only mentors and administrators can analyze student documents.");
+        }
+
+        Document doc = documentRepository.findById(documentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Document not found with ID: " + documentId));
+
+        User student = userRepository.findById(doc.getUserId())
+                .orElseThrow(() -> new ResourceNotFoundException("Student owner of document not found."));
+
+        if (mentorOrAdmin.getRole() == UserRole.MENTOR) {
+            if (student.getMentorId() == null || !student.getMentorId().equals(mentorOrAdmin.getId())) {
+                throw new AccessDeniedException("You are not the assigned mentor for this student's document.");
+            }
+        }
+
+        if (request != null) {
+            if (request.getAnalysisNotes() != null) {
+                doc.setAnalysisNotes(request.getAnalysisNotes().trim());
+            }
+            if (request.getAnalysisStatus() != null && !request.getAnalysisStatus().isBlank()) {
+                doc.setAnalysisStatus(request.getAnalysisStatus().trim().toUpperCase());
+            }
+        }
+
+        doc.setAnalyzedAt(LocalDateTime.now());
+        doc.setAnalyzedByMentorId(mentorOrAdmin.getId());
+        doc.setAnalyzedByMentorName(mentorOrAdmin.getDisplayName());
+        doc.setUpdatedAt(LocalDateTime.now());
+
+        Document saved = documentRepository.save(doc);
+        logger.info("Document ID {} analyzed by mentor {}: status={}", saved.getId(), mentorOrAdmin.getDisplayName(), saved.getAnalysisStatus());
+
+        try {
+            boolean isApproved = "APPROVED".equalsIgnoreCase(saved.getAnalysisStatus());
+            String title = isApproved ? "Document Verified: " + saved.getTitle() : "Document Review: " + saved.getTitle();
+            String desc = "Your faculty mentor " + (mentorOrAdmin.getDisplayName() != null ? mentorOrAdmin.getDisplayName() : mentorOrAdmin.getEmail())
+                    + " has reviewed your document with status: " + saved.getAnalysisStatus()
+                    + (saved.getAnalysisNotes() != null && !saved.getAnalysisNotes().isBlank() ? ". Notes: " + saved.getAnalysisNotes() : ".");
+
+            notificationService.createNotification(
+                    student.getId(),
+                    title,
+                    desc,
+                    "verification",
+                    isApproved ? "DOCUMENT VERIFIED" : "VERIFICATION REVIEW",
+                    isApproved ? "high" : "normal",
+                    "Faculty Review Desk",
+                    isApproved ? "check-circle" : "file-text",
+                    "View in Documents →",
+                    "documents"
+            );
+        } catch (Exception ex) {
+            logger.warn("Could not create document review notification: {}", ex.getMessage());
+        }
+
+        return mapToDocumentResponse(saved, student);
+    }
+
+    public List<DocumentResponse> getMentorSharedDocuments(User student) {
+        if (student == null || student.getRole() != UserRole.STUDENT || student.getMentorId() == null || student.getMentorId().isBlank()) {
+            return List.of();
+        }
+        User mentor = userRepository.findById(student.getMentorId()).orElse(null);
+        if (mentor == null) {
+            return List.of();
+        }
+        List<Document> mentorDocs = documentRepository.findByUserIdOrderByCreatedAtDesc(mentor.getId());
+        return mentorDocs.stream()
+                .map(doc -> mapToDocumentResponse(doc, mentor))
+                .collect(Collectors.toList());
+    }
+
+    // ==========================================
+    // PERMISSION CHECKS & MAPPINGS
+    // ==========================================
+
+    public Document getDocumentAndVerifyAccess(User requester, String documentId) {
+        if (documentId == null || documentId.isBlank()) {
+            throw new IllegalArgumentException("Document ID cannot be blank.");
+        }
+
+        Document doc = documentRepository.findById(documentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Document not found with ID: " + documentId));
+
+        // 1. Owner can access
+        if (doc.getUserId().equals(requester.getId())) {
+            return doc;
+        }
+
+        // 2. Admin can access
+        if (requester.getRole() == UserRole.ADMIN) {
+            return doc;
+        }
+
+        // 3. Assigned Mentor can access
+        if (requester.getRole() == UserRole.MENTOR) {
+            Optional<User> ownerOpt = userRepository.findById(doc.getUserId());
+            if (ownerOpt.isPresent() && requester.getId().equals(ownerOpt.get().getMentorId())) {
+                return doc;
+            }
+        }
+
+        // 4. Assigned Student can access their mentor's uploaded documents
+        if (requester.getRole() == UserRole.STUDENT && requester.getMentorId() != null) {
+            if (requester.getMentorId().equals(doc.getUserId())) {
+                return doc;
+            }
+        }
+
+        logger.warn("Security violation: User '{}' (Role: {}) attempted to access document '{}' owned by user ID '{}'",
+                requester.getEmail(), requester.getRole(), documentId, doc.getUserId());
+        throw new AccessDeniedException("You do not have permission to access or view this document.");
+    }
+
     private Document getDocumentAndVerifyOwnership(User user, String documentId) {
         if (documentId == null || documentId.isBlank()) {
             throw new IllegalArgumentException("Document ID cannot be blank.");
@@ -247,9 +413,9 @@ public class DocumentService {
                 .orElseThrow(() -> new ResourceNotFoundException("Document not found with ID: " + documentId));
 
         if (!doc.getUserId().equals(user.getId())) {
-            logger.warn("Security violation: User '{}' (ID: {}) attempted to access document '{}' owned by user ID '{}'",
-                    user.getEmail(), user.getId(), documentId, doc.getUserId());
-            throw new AccessDeniedException("You do not have permission to access or modify this document.");
+            logger.warn("Security violation: User '{}' attempted to modify document '{}' owned by user ID '{}'",
+                    user.getEmail(), documentId, doc.getUserId());
+            throw new AccessDeniedException("You do not have permission to modify this document.");
         }
 
         return doc;
@@ -265,7 +431,11 @@ public class DocumentService {
     }
 
     public DocumentResponse mapToDocumentResponse(Document doc) {
-        return new DocumentResponse(
+        return mapToDocumentResponse(doc, null);
+    }
+
+    public DocumentResponse mapToDocumentResponse(Document doc, User ownerUser) {
+        DocumentResponse resp = new DocumentResponse(
                 doc.getId(),
                 doc.getOriginalFileName(),
                 doc.getTitle(),
@@ -277,6 +447,25 @@ public class DocumentService {
                 doc.getCreatedAt(),
                 doc.getUpdatedAt()
         );
+
+        resp.setAnalysisNotes(doc.getAnalysisNotes());
+        resp.setAnalysisStatus(doc.getAnalysisStatus() != null ? doc.getAnalysisStatus() : "PENDING_REVIEW");
+        resp.setAnalyzedAt(doc.getAnalyzedAt());
+        resp.setAnalyzedByMentorName(doc.getAnalyzedByMentorName());
+
+        if (ownerUser != null) {
+            resp.setStudentId(ownerUser.getId());
+            resp.setStudentName(ownerUser.getDisplayName());
+            resp.setStudentEmail(ownerUser.getEmail());
+        } else if (doc.getUserId() != null) {
+            userRepository.findById(doc.getUserId()).ifPresent(u -> {
+                resp.setStudentId(u.getId());
+                resp.setStudentName(u.getDisplayName());
+                resp.setStudentEmail(u.getEmail());
+            });
+        }
+
+        return resp;
     }
 
     private DocumentUploadResponse mapToUploadResponse(Document doc, String message) {

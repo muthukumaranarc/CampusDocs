@@ -93,6 +93,13 @@ public class DocumentController {
         return ResponseEntity.ok(recent);
     }
 
+    @GetMapping("/mentor-shared")
+    public ResponseEntity<List<DocumentResponse>> getMentorSharedDocuments(@AuthenticationPrincipal Object principal) {
+        User user = resolveUser(principal);
+        List<DocumentResponse> shared = documentService.getMentorSharedDocuments(user);
+        return ResponseEntity.ok(shared);
+    }
+
     @GetMapping("/{id}/preview")
     public ResponseEntity<StreamingResponseBody> previewDocument(
             @PathVariable("id") String id,

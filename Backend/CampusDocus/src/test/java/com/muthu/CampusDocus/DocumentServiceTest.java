@@ -55,6 +55,12 @@ class DocumentServiceTest {
     @Mock
     private MongoTemplate mongoTemplate;
 
+    @Mock
+    private com.muthu.CampusDocus.repository.UserRepository userRepository;
+
+    @Mock
+    private com.muthu.CampusDocus.service.NotificationService notificationService;
+
     private DocumentValidationService validationService;
     private DocumentService documentService;
 
@@ -67,7 +73,7 @@ class DocumentServiceTest {
         validationService = new DocumentValidationService();
         ReflectionTestUtils.setField(validationService, "maxFileSizeBytes", 10485760L); // 10 MB
 
-        documentService = new DocumentService(documentRepository, validationService, googleDriveService, mongoTemplate);
+        documentService = new DocumentService(documentRepository, validationService, googleDriveService, mongoTemplate, userRepository, notificationService);
 
         testUser = new User("google-sub-123", "student@college.edu", "Student Name", "https://avatar.url");
         testUser.setId("user-mongo-id-1");

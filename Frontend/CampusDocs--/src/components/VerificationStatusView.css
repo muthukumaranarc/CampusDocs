@@ -1,0 +1,139 @@
+.cd-view-panel {
+  background: #ffffff;
+  border: 1px solid #f1f5f9;
+  border-radius: 20px;
+  padding: 28px 32px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.02);
+  box-sizing: border-box;
+}
+
+.cd-view-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.cd-view-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 4px;
+  letter-spacing: -0.4px;
+}
+
+.cd-view-subtitle {
+  font-size: 13.5px;
+  color: #64748b;
+  margin: 0;
+}
+
+.cd-filter-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #f1f5f9;
+  padding-bottom: 12px;
+}
+
+.cd-filter-tab {
+  background: transparent;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cd-filter-tab:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.cd-filter-tab.active {
+  background: #eff6ff;
+  color: #2563eb;
+  font-weight: 700;
+}
+
+.cd-verification-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.cd-v-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 18px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.cd-v-card-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  flex: 1;
+}
+
+.cd-v-big-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.cd-v-big-icon.verified {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.cd-v-big-icon.pending {
+  background: #fff7ed;
+  color: #d97706;
+}
+
+.cd-v-card-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cd-v-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cd-v-card-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.cd-v-card-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.cd-v-reviewer-note {
+  font-size: 12.5px;
+  color: #475569;
+  margin: 4px 0 0;
+}
+

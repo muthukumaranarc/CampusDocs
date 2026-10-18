@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { documentService } from '../services/api'
+import './DocumentEditModal.css'
 
 const CATEGORIES = [
   { value: 'ACADEMIC_RECORDS', label: 'Academic Records' },

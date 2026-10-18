@@ -15,4 +15,8 @@ public interface DocumentRepository extends MongoRepository<Document, String> {
     Optional<Document> findByIdAndUserId(String id, String userId);
 
     Optional<Document> findFirstByUserIdOrderByCreatedAtDesc(String userId);
+
+    long countByUserId(String userId);
+
+    List<Document> findTop5ByUserIdOrderByCreatedAtDesc(String userId);
 }

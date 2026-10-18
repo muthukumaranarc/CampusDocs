@@ -68,7 +68,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/me").permitAll()
                         .requestMatchers("/oauth2/**", "/login/**", "/error").permitAll()
                         // Protected APIs
-                        .requestMatchers("/api/drive/**", "/api/documents/**").authenticated()
+                        .requestMatchers("/api/user/**", "/api/drive/**", "/api/documents/**", "/api/mentorship/**", "/api/admin/**", "/api/announcements/**").authenticated()
                         .requestMatchers("/api/auth/logout").permitAll()
                         // Any other request requires authentication
                         .anyRequest().authenticated()

@@ -1,0 +1,36 @@
+/* ========================================================
+   Edit & Delete Modal Polished Styling
+   ======================================================== */
+
+.modal-heading {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.modal-subtitle-bold {
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.edit-badge {
+  background: var(--primary-light);
+  color: var(--primary);
+}
+
+.delete-badge {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+}
+
+.text-danger {
+  color: #ef4444 !important;
+}
+
+.input-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
