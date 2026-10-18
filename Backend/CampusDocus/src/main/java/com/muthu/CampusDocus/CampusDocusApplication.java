@@ -63,7 +63,19 @@ public class CampusDocusApplication {
 			clean = clean.replaceAll("[\\r\\n\\t]+", "").trim();
 
 			if (clean.startsWith("mongodb://") || clean.startsWith("mongodb+srv://")) {
-				log.info("Sanitized MongoDB connection URI successfully (Scheme: {})",
+				// If database name is missing before query params (e.g. mongodb.net/?), insert /campusdocs
+				if (clean.contains(".mongodb.net/?")) {
+					clean = clean.replace(".mongodb.net/?", ".mongodb.net/campusdocs?");
+				} else if (clean.endsWith(".mongodb.net") || clean.endsWith(".mongodb.net/")) {
+					clean = clean.endsWith("/") ? clean + "campusdocs" : clean + "/campusdocs";
+				}
+
+				// If authSource is not specified, explicitly append authSource=admin for Atlas
+				if (!clean.contains("authSource=")) {
+					clean += clean.contains("?") ? "&authSource=admin" : "?authSource=admin";
+				}
+
+				log.info("Sanitized MongoDB connection URI successfully (Scheme: {}, authSource: admin)",
 						clean.startsWith("mongodb+srv://") ? "mongodb+srv" : "mongodb");
 				System.setProperty("MONGODB_URL", clean);
 				System.setProperty("spring.data.mongodb.uri", clean);
